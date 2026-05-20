@@ -3,7 +3,7 @@
   <name>pbvs_camera</name>
   <version>0.2.0</version>
   <description>UR5e PBVS camera simulation package with Gazebo world, camera bridge, RGB-D target detection, RViz markers, and PBVS controller nodes.</description>
-  <maintainer email="user@example.com">pavan-kumar-pavada</maintainer>
+  <maintainer email="user@example.com">Sai-Teja-Majji</maintainer>
   <license>MIT</license>
 
   <buildtool_depend>ament_python</buildtool_depend>

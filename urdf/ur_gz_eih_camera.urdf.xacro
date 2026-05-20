@@ -1,0 +1,156 @@
+<?xml version="1.0"?>
+
+<robot xmlns:xacro="http://wiki.ros.org/xacro" name="$(arg name)">
+
+  <xacro:arg name="name" default="ur"/>
+  <xacro:arg name="ur_type" default="ur5e"/>
+  <xacro:arg name="tf_prefix" default=""/>
+
+  <xacro:arg name="joint_limit_params" default="$(find ur_description)/config/$(arg ur_type)/joint_limits.yaml"/>
+  <xacro:arg name="kinematics_params" default="$(find ur_description)/config/$(arg ur_type)/default_kinematics.yaml"/>
+  <xacro:arg name="physical_params" default="$(find ur_description)/config/$(arg ur_type)/physical_parameters.yaml"/>
+  <xacro:arg name="visual_params" default="$(find ur_description)/config/$(arg ur_type)/visual_parameters.yaml"/>
+
+  <xacro:arg name="transmission_hw_interface" default=""/>
+  <xacro:arg name="safety_limits" default="false"/>
+  <xacro:arg name="safety_pos_margin" default="0.15"/>
+  <xacro:arg name="safety_k_position" default="20"/>
+  <xacro:arg name="simulation_controllers" default=""/>
+  <xacro:arg name="ros_namespace" default=""/>
+
+  <!-- Camera offset: 0.01m in X and Z from tool0 (close to wrist) -->
+  <xacro:arg name="eih_camera_xyz" default="0.01 0.00 0.01"/>
+  
+  <xacro:arg name="eih_camera_rpy" default="0 0 0"/>
+
+  <xacro:include filename="$(find ur_description)/urdf/ur_macro.xacro"/>
+  <xacro:include filename="$(find ur_simulation_gz)/urdf/ur_gz.ros2_control.xacro"/>
+
+  <link name="world"/>
+
+  <link name="ground_plane">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry><box size="5 5 0"/></geometry>
+      <material name="ground_white"><color rgba="1 1 1 0.5"/></material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry><box size="5 5 0"/></geometry>
+    </collision>
+  </link>
+
+  <joint name="ground_plane_joint" type="fixed">
+    <origin xyz="0 0 -0.01" rpy="0 0 0"/>
+    <parent link="world"/>
+    <child link="ground_plane"/>
+  </joint>
+
+  <xacro:ur_robot
+      name="$(arg name)"
+      tf_prefix="$(arg tf_prefix)"
+      parent="world"
+      joint_limits_parameters_file="$(arg joint_limit_params)"
+      kinematics_parameters_file="$(arg kinematics_params)"
+      physical_parameters_file="$(arg physical_params)"
+      visual_parameters_file="$(arg visual_params)"
+      safety_limits="$(arg safety_limits)"
+      safety_pos_margin="$(arg safety_pos_margin)"
+      safety_k_position="$(arg safety_k_position)"
+      force_abs_paths="true">
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+  </xacro:ur_robot>
+
+  <link name="camera_color_optical_frame">
+    <inertial>
+      <mass value="0.05"/>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <inertia ixx="0.00001" ixy="0" ixz="0" iyy="0.00001" iyz="0" izz="0.00001"/>
+    </inertial>
+  </link>
+
+  <joint name="eye_in_hand_camera_joint" type="fixed">
+    <parent link="$(arg tf_prefix)tool0"/>
+    <child link="camera_color_optical_frame"/>
+    <origin xyz="$(arg eih_camera_xyz)" rpy="$(arg eih_camera_rpy)"/>
+  </joint>
+
+  <link name="camera_gazebo_link">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <!-- Reduced camera box: 10mm x 15mm x 6mm (half of original) -->
+      <geometry><box size="0.010 0.015 0.006"/></geometry>
+      <material name="camera_black"><color rgba="0.05 0.05 0.05 1"/></material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry><box size="0.010 0.015 0.006"/></geometry>
+    </collision>
+    <inertial>
+      <mass value="0.05"/>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <inertia ixx="0.00001" ixy="0" ixz="0" iyy="0.00001" iyz="0" izz="0.00001"/>
+    </inertial>
+  </link>
+
+  <joint name="camera_gazebo_joint" type="fixed">
+    <parent link="camera_color_optical_frame"/>
+    <child link="camera_gazebo_link"/>
+    <origin xyz="0 0 0" rpy="0 -1.57079632679 0"/>
+  </joint>
+
+  <gazebo reference="camera_gazebo_link">
+    <sensor name="wrist_realsense_color" type="camera">
+      <pose>0 0 0 0 0 0</pose>
+      <update_rate>30</update_rate>
+      <camera>
+        <horizontal_fov>1.20</horizontal_fov>
+        <image>
+          <width>640</width>
+          <height>480</height>
+          <format>R8G8B8</format>
+        </image>
+        <clip>
+          <near>0.05</near>
+          <far>10.0</far>
+        </clip>
+      </camera>
+      <topic>/camera/camera/color/image_raw</topic>
+      <camera_info_topic>/camera/camera/color/camera_info</camera_info_topic>
+    </sensor>
+
+    <sensor name="wrist_realsense_depth" type="depth_camera">
+      <pose>0 0 0 0 0 0</pose>
+      <update_rate>30</update_rate>
+      <camera>
+        <horizontal_fov>1.20</horizontal_fov>
+        <image>
+          <width>640</width>
+          <height>480</height>
+        </image>
+        <clip>
+          <near>0.05</near>
+          <far>5.0</far>
+        </clip>
+      </camera>
+      <topic>/camera/camera/aligned_depth_to_color/image_raw</topic>
+    </sensor>
+  </gazebo>
+
+  <gazebo reference="world"/>
+
+  <gazebo>
+    <plugin filename="gz_ros2_control-system" name="gz_ros2_control::GazeboSimROS2ControlPlugin">
+      <parameters>$(arg simulation_controllers)</parameters>
+      <ros>
+        <namespace>$(arg ros_namespace)</namespace>
+      </ros>
+    </plugin>
+  </gazebo>
+
+  <xacro:ur_ros2_control
+      name="$(arg name)"
+      tf_prefix="$(arg tf_prefix)"
+      transmission_hw_interface="$(arg transmission_hw_interface)"/>
+
+</robot>
